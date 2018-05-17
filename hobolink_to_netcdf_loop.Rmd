@@ -1,0 +1,1023 @@
+
+
+```{r}
+
+
+
+
+library("lubridate")
+library("ncdf4")
+library("zoo")
+library("Rsenal")
+library("humidity")
+
+
+
+```
+Line#
+Date
+Wind Direction (S-WDA 20137625:10085790-1), *, Otjiwarongo_ESE28km
+Solar Radiation (S-LIB 20137625:10085812-1), W/m^2, Otjiwarongo_ESE28km
+Temperature (S-THB 20137625:10087651-1), *C, Otjiwarongo_ESE28km
+RH (S-THB 20137625:10087651-2), %, Otjiwarongo_ESE28km
+Dew Point (S-THB 20137625:10087651-3), *C, Otjiwarongo_ESE28km
+Pressure (S-BPB 20137625:10090141-1), mbar, Otjiwarongo_ESE28km
+Wind Speed (S-WSA 20137625:10090349-1), m/s, Otjiwarongo_ESE28km
+Gust Speed (S-WSA 20137625:10090349-2), m/s, Otjiwarongo_ESE28km
+Battery (RX3000 BATTERY 20137625:20137625-B), V, Otjiwarongo_ESE28km
+
+
+Wind Direction (S-WDA 20137625:10085790-1), *, Ojiwarango_ESE28km
+Solar Radiation (S-LIB 20137625:10085812-1), W/m^2, Ojiwarango_ESE28km
+Temperature (S-THB 20137625:10087651-1), *C, Ojiwarango_ESE28km
+RH (S-THB 20137625:10087651-2), %, Ojiwarango_ESE28km
+Dew Point (S-THB 20137625:10087651-3), *C, Ojiwarango_ESE28km
+Pressure (S-BPB 20137625:10090141-1), mbar, Ojiwarango_ESE28km
+Wind Speed (S-WSA 20137625:10090349-1), m/s, Ojiwarango_ESE28km
+Gust Speed (S-WSA 20137625:10090349-2), m/s, Ojiwarango_ESE28km
+Battery (RX3000 BATTERY 20137625:20137625-B), V, Ojiwarango_ESE28km
+
+
+fields to remove
+
+Wind Direction (S-WDA 20137625:10085790-1), *, Ojiwarango_ESE28km
+Solar Radiation (S-LIB 20137625:10085812-1), W/m^2, Ojiwarango_ESE28km
+Temperature (S-THB 20137625:10087651-1), *C, Ojiwarango_ESE28km
+RH (S-THB 20137625:10087651-2), %, Ojiwarango_ESE28km
+Dew Point (S-THB 20137625:10087651-3), *C, Ojiwarango_ESE28km
+Pressure (S-BPB 20137625:10090141-1), mbar, Ojiwarango_ESE28km
+Wind Speed (S-WSA 20137625:10090349-1), m/s, Ojiwarango_ESE28km
+Gust Speed (S-WSA 20137625:10090349-2), m/s, Ojiwarango_ESE28km
+Battery (RX3000 BATTERY 20137625:20137625-B), V, Ojiwarango_ESE28km
+
+```{r}
+
+
+csv_file  = "~/GitHub/HOBOLINK/April_2018_2018_05_10_19_29_55_UTC_1.csv"
+
+site_label     = "Ojiwarango ESE28km"
+site_latitude  = - ( 20 + (34.0 + 32.69 /60.0) / 60.0 )
+site_longitude =   ( 16 + (53.0 + 20.79 /60.0) / 60.0 )
+site_altitude  =  1607.0
+
+start_window = "2018-04-01_00:00:00"
+end_window   = "2018-04-30_23:59:00"
+
+
+input_directory = "~/GitHub/HOBOLINK/"
+csv_file        = paste(input_directory,
+                        "Ojiwarango_ESE28km_2018-04-01_00:00:00_2018.csv",
+                        sep="")
+
+ncdf_file    = paste(input_directory,
+                     "Ojiwarango_ESE28km_",
+                     start_window,
+                     "_",
+                     end_window,
+                     ".csv",
+                     sep = "")
+
+
+start_time = as.POSIXct(x      = paste(gsub(pattern     = "_", 
+                                            replacement = " ", 
+                                            x           = start_window),
+                                       "UTC",
+                                       sep=" "), 
+                        format = "%Y-%m-%d %H:%M:%S",
+                        tz     = "UTC",
+                        origin = "1970-01-01 00:00:00 UTC")
+
+end_time   = as.POSIXct(x      = paste(gsub(pattern     = "_", 
+                                            replacement = " ", 
+                                            x           = end_window),
+                                       "UTC",
+                                       sep=" "), 
+                        format = "%Y-%m-%d %H:%M:%S",
+                        tz     = "UTC",
+                        origin = "1970-01-01 00:00:00 UTC")
+
+time       = seq(from = start_time, 
+                 to   = end_time,
+                 by   = 60.0)
+
+data = read.csv(file = csv_file, 
+                header = TRUE, 
+                quote = "\"",
+                dec = ".", 
+                fill = TRUE,
+                comment.char = "")
+
+remove(csv_file)
+
+
+names(data)[ 1] = "Record"
+names(data)[ 2] = "time"
+names(data)[ 3] = "wind_from_direction"
+names(data)[ 4] = "solar_irradiance"
+names(data)[ 5] = "relative_humidity"
+names(data)[ 6] = "air_temperature"
+names(data)[ 7] = "dew_point_temperature"
+names(data)[ 8] = "air_pressure"
+names(data)[ 9] = "wind_speed"
+names(data)[10] = "wind_speed_of_gust"
+names(data)[11] = "Battery_Voltage"
+
+data$wind_from_direction   = as.numeric(data$wind_from_direction)
+data$solar_irradiance      = as.numeric(data$solar_irradiance)
+data$relative_humidity     = as.numeric(data$relative_humidity)
+data$air_temperature       = as.numeric(data$air_temperature)
+data$dew_point_temperature = as.numeric(data$dew_point_temperature)
+data$air_pressure          = as.numeric(data$air_pressure)
+data$wind_speed            = as.numeric(data$wind_speed)
+data$wind_speed_of_gust    = as.numeric(data$wind_speed_of_gust)
+data$Battery_Voltage       = as.numeric(data$Battery_Voltage)
+
+deleteme = wdws2uv(wd = data$wind_from_direction, 
+                   ws = data$wind_speed)
+
+data$eastward_wind         = deleteme[,1]
+data$northward_wind        = deleteme[,2]
+
+
+data$specific_humidity = SH(e = SVP(t       = data$air_temperature,
+                                    isK     = FALSE,
+                                    formula = "Clausius-Clapeyron"),
+                            p = data$air_pressure * 100.0)
+
+remove(deleteme)
+
+zoo.time = as.POSIXct(x      = strptime(data$time, "%y/%m/%d %H:%M:%S"), 
+                      format = "%Y-%m-%d %H:%M:%S",
+                      tz     = "UTC",
+                      origin = "1970-01-01 00:00:00 UTC")
+
+keeps = names(data)[ 3:11]
+data  = data[keeps]
+remove(keeps)
+
+
+zoo.data = as.zoo(x        = data,
+                  order.by = zoo.time)
+
+remove(data)
+
+
+zoo.data =  merge.zoo(x = zoo.data, 
+                      y = zoo(x        = ,
+                              order.by = time), 
+                      fill = NA)
+
+```
+
+
+
+
+```{r}
+
+
+  netcdf_output_file_name = paste(file_title_string,
+                                  ".nc",
+                                  sep="")
+
+  netcdf_time_dim  = ncdim_def(name  = "time",
+                               units = "days since 1970-01-01 00:00:00",
+                               val   = Days_from_1970_01_01,
+                               unlim = TRUE,
+                               calendar="standard")
+
+  netcdf_name_dim  = ncdim_def(name  = "name_strlen",
+                               units = "",
+                               val   = 1:nchar(file_title_string),
+                               unlim = FALSE,
+                               create_dimvar=FALSE)
+
+
+
+
+  fill_value = 9.96921e+36
+
+
+  netcdf_stn = ncvar_def(nam      = "station_name",
+                         units    = "",
+                         dim      = netcdf_name_dim,
+                         longname = "station name",
+                         prec     = "char")
+
+
+  netcdf_lat = ncvar_def(nam      = "latitude",
+                         units    = "degrees_north",
+                         dim      = list(),
+                         longname = "Latitude",
+                         prec     = "single")
+
+  netcdf_lon = ncvar_def(nam      = "longitude",
+                         units    = "degrees_east",
+                         dim      = list(),
+                         longname = "Longitude",
+                         prec     = "single")
+
+  netcdf_alt = ncvar_def(nam      = "altitude",
+                         units    = "m",
+                         dim      = list(),
+                         longname = "Elevation",
+                         prec     = "single")
+
+
+  netcdf_available_variables = list(netcdf_lat,
+                                    netcdf_lon,
+                                    netcdf_alt,
+                                    netcdf_stn)
+
+
+  if ("TMAX" %in% available_datafields) {
+    netcdf_tmax = ncvar_def(nam      = "maximum_air_temperature",
+                            units    = "degC",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "2-m Maximum Daily Air Temperature",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_tmax)
+  }
+
+  if ("TMIN" %in% available_datafields) {
+    netcdf_tmin = ncvar_def(nam      = "minimum_air_temperature",
+                            units    = "degC",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "2-m Minimium Daily Air Temperature",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_tmin)
+  }
+
+
+  if ("TAVG" %in% available_datafields) {
+    netcdf_tavg = ncvar_def(nam      = "mean_air_temperature",
+                            units    = "degC",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "2-m Mean Daily Air Temperature",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_tavg)
+  }
+
+  if ("PRCP" %in% available_datafields) {
+    netcdf_prcp = ncvar_def(nam      = "precipitation_amount",
+                            units    = "kg m-2",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Daily Total Precipitation",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_prcp)
+  }
+
+  if ("SNOW" %in% available_datafields) {
+    netcdf_snow = ncvar_def(nam      = "thickness_of_snowfall_amount",
+                            units    = "m",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Daily Total Snowfall",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_snow)
+  }
+
+  if ("SNWD" %in% available_datafields) {
+    netcdf_snwd = ncvar_def(nam      = "surface_snow_thickness",
+                            units    = "m",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Snow Depth on Surface",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_snwd)
+  }
+
+
+  if ("WESD" %in% available_datafields) {
+    netcdf_wesd = ncvar_def(nam      = "liquid_water_content_of_surface_snow",
+                            units    = "kg m-2",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Liquid Snow Water Equivalent Depth on Surface",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_wesd)
+  }
+
+  if ("WESF" %in% available_datafields) {
+    netcdf_wesf = ncvar_def(nam      = "liquid_water_equivalent_snowfall_amount",
+                            units    = "kg m-2",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Liquid Snow Water Equivalent Depth on Surface",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_wesf)
+  }
+
+
+  if ("AWND" %in% available_datafields) {
+    netcdf_awnd = ncvar_def(nam      = "mean_wind_speed",
+                            units    = "m s-1",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Mean Daily Wind Speed",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_awnd)
+  }
+
+
+  if ("AWNDR" %in% available_datafields) {
+    netcdf_awdr = ncvar_def(nam      = "mean_wind_from_direction",
+                            units    = "degrees_from",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Mean Daily Wind Origin Direction",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_awdr)
+  }
+
+
+
+
+
+
+
+
+  nc_ghcn = nc_create(filename = netcdf_output_file_name,
+                        vars     = netcdf_available_variables,
+                        force_v4 = FALSE,
+                        verbose  = FALSE )
+
+
+
+
+
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "Title",
+          attval     = paste("NCEI Data Hourly Output for ",
+                             station_name_label,
+                             sep=""),
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "GHCN_Station_Code",
+          attval     = ncdc_id_code,
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "Station_Name",
+          attval     = station_name_label,
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "Station_Latitude",
+          attval     = station_latitude,
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "Station_Longitude",
+          attval     = station_longitude,
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "Station_Elevation_in_Meters",
+          attval     = station_altitude,
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE )
+
+ncatt_put(nc         = nc_ghcn,
+          varid      = 0,
+          attname    = "featureType",
+          attval     = "timeSeries",
+          prec       = NA,
+          verbose    = FALSE,
+          definemode = FALSE)
+
+ncatt_put(nc         = nc_ghcn,
+           varid      = 0,
+           attname    = "Conventions",
+           attval     = "CF-1.6",
+           prec       = NA,
+           verbose    = FALSE,
+           definemode = FALSE)
+
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_stn,
+            attname    = "description",
+            attval     = "station name",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+   ncatt_put(nc         = nc_ghcn,
+             varid      = netcdf_stn,
+             attname    = "cf_role",
+             attval     = "timeseries_id",
+             prec       = NA,
+             verbose    = FALSE,
+             definemode = FALSE )
+
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_alt,
+            attname    = "standard_name",
+            attval     = "altitude",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+   ncatt_put(nc         = nc_ghcn,
+             varid      = netcdf_alt,
+             attname    = "positive",
+             attval     = "up",
+             prec       = NA,
+             verbose    = FALSE,
+             definemode = FALSE )
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_alt,
+            attname    = "description",
+            attval     = "Elevation",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_lon,
+            attname    = "standard_name",
+            attval     = "longitude",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_lon,
+            attname    = "description",
+            attval     = "Longitude",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_lat,
+            attname    = "standard_name",
+            attval     = "latitude",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+  ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_lat,
+            attname    = "description",
+            attval     = "Latitude",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+
+
+  if ("TMAX" %in% available_datafields) {
+      ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmax,
+              attname    = "standard_name",
+              attval     = "air_temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmax,
+              attname    = "cell_methods",
+              attval     = "time: maximum",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmax,
+              attname    = "description",
+              attval     = "2-m Minimium Daily Air Temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+         varid      = netcdf_tmax,
+         attname    = "coordinates",
+         attval     = "time latitude longitude altitude station_name",
+         prec       = NA,
+         verbose    = FALSE,
+         definemode = FALSE )
+
+  }
+
+  if ("TMIN" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmin,
+              attname    = "standard_name",
+              attval     = "air_temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmin,
+              attname    = "cell_methods",
+              attval     = "time: minimum",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tmin,
+              attname    = "description",
+              attval     = "2-m Minimium Daily Air Temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+
+     ncatt_put(nc         = nc_ghcn,
+        varid      = netcdf_tmin,
+        attname    = "coordinates",
+        attval     = "time latitude longitude altitude station_name",
+        prec       = NA,
+        verbose    = FALSE,
+        definemode = FALSE )
+  }
+
+  if ("TAVG" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tavg,
+              attname    = "standard_name",
+              attval     = "air_temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tavg,
+              attname    = "cell_methods",
+              attval     = "time: mean",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_tavg,
+              attname    = "description",
+              attval     = "2-m Mean Daily Air Temperature",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+                varid      = netcdf_tmax,
+                attname    = "coordinates",
+                attval     = "time latitude longitude altitude station_name",
+                prec       = NA,
+                verbose    = FALSE,
+                definemode = FALSE )
+  }
+
+
+
+
+  if ("PRCP" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_prcp,
+              attname    = "standard_name",
+              attval     = "precipitation_amount",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_prcp,
+              attname    = "cell_methods",
+              attval     = "time: sum",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_prcp,
+              attname    = "description",
+              attval     = "Daily Total Precipitation",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+               varid      = netcdf_prcp,
+               attname    = "coordinates",
+               attval     = "time latitude longitude altitude station_name",
+               prec       = NA,
+               verbose    = FALSE,
+               definemode = FALSE )
+
+    }
+
+  if ("SNOW" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snow,
+              attname    = "standard_name",
+              attval     = "thickness_of_snowfall_amount",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snow,
+              attname    = "cell_methods",
+              attval     = "time: sum",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snow,
+              attname    = "description",
+              attval     = "Daily Total Snowfall",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+      ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snow,
+              attname    = "coordinates",
+              attval     = "time latitude longitude altitude station_name",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+  }
+
+  if ("SNWD" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snwd,
+              attname    = "standard_name",
+              attval     = "surface_snow_thickness",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snwd,
+              attname    = "cell_methods",
+              attval     = "time: point",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_snwd,
+              attname    = "description",
+              attval     = "Snow Depth on Surface",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+     ncatt_put(nc         = nc_ghcn,
+             varid      = netcdf_snwd,
+             attname    = "coordinates",
+             attval     = "time latitude longitude altitude station_name",
+             prec       = NA,
+             verbose    = FALSE,
+             definemode = FALSE )
+
+  }
+
+
+  if ("WESD" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesd,
+              attname    = "standard_name",
+              attval     = "liquid_water_content_of_surface_snow",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesd,
+              attname    = "cell_methods",
+              attval     = "time: point",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesd,
+              attname    = "description",
+              attval     = "Liquid Snow Water Equivalent Depth on Surface",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+     ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_wesd,
+            attname    = "coordinates",
+            attval     = "time latitude longitude altitude station_name",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+
+  }
+
+
+  if ("WSEF" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesf,
+              attname    = "standard_name",
+              attval     = "snowfall_amount",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesf,
+              attname    = "cell_methods",
+              attval     = "time: sum",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_wesf,
+              attname    = "description",
+              attval     = "Liquid Snowfall Water Equivalent",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+     ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_wesf,
+            attname    = "coordinates",
+            attval     = "time latitude longitude altitude station_name",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+  }
+
+
+  if ("AWND" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awnd,
+              attname    = "standard_name",
+              attval     = "wind_speed",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awnd,
+              attname    = "cell_methods",
+              attval     = "time: mean",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awnd,
+              attname    = "description",
+              attval     = "Mean Daily Wind Speed",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+     ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_awnd,
+            attname    = "coordinates",
+            attval     = "time latitude longitude altitude station_name",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+  }
+
+  if ("AWDR" %in% available_datafields) {
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awdr,
+              attname    = "standard_name",
+              attval     = "wind_from_direction",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awdr,
+              attname    = "cell_methods",
+              attval     = "time: mean",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+    ncatt_put(nc         = nc_ghcn,
+              varid      = netcdf_awdr,
+              attname    = "description",
+              attval     = "Mean Daily Wind Origin Direction",
+              prec       = NA,
+              verbose    = FALSE,
+              definemode = FALSE )
+
+     ncatt_put(nc         = nc_ghcn,
+            varid      = netcdf_awdr,
+            attname    = "coordinates",
+            attval     = "time latitude longitude altitude station_name",
+            prec       = NA,
+            verbose    = FALSE,
+            definemode = FALSE )
+
+
+  }
+
+
+
+
+
+
+  ncvar_put(nc      = nc_ghcn,
+            varid   = netcdf_lat,
+            vals    = station_latitude,
+            verbose = FALSE )
+  remove(netcdf_lat,
+         station_latitude)
+
+  ncvar_put(nc      = nc_ghcn,
+            varid   = netcdf_lon,
+            vals    = station_longitude,
+            verbose = FALSE )
+  remove(netcdf_lon,
+         station_longitude)
+
+  ncvar_put(nc      = nc_ghcn,
+            varid   = netcdf_alt,
+            vals    = station_altitude,
+            verbose = FALSE )
+
+  ncvar_put(nc      = nc_ghcn,
+            varid   = netcdf_stn,
+            vals    = file_title_string,
+            verbose = FALSE )
+
+  remove(netcdf_alt,
+         station_altitude)
+
+
+  if ("TMAX" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_tmax,
+              vals    = tmax,
+              verbose = FALSE )
+    remove(netcdf_tmax,
+           tmax)
+    }
+
+  if ("TMIN" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_tmin,
+              vals    = tmin,
+              verbose = FALSE )
+    remove(netcdf_tmin,
+           tmin)
+    }
+
+
+  if ("TAVG" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_tavg,
+              vals    = tavg,
+              verbose = FALSE )
+    remove(netcdf_tavg,
+           tavg)
+    }
+
+
+  if ("PRCP" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_prcp,
+              vals    = prcp,
+              verbose = FALSE )
+    remove(netcdf_prcp,
+           prcp)
+    }
+
+  if ("SNOW" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_snow,
+              vals    = (snow/1000.0),
+              verbose = FALSE )
+    remove(netcdf_snow,
+           snow)
+    }
+
+  if ("SNWD" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_snwd,
+              vals    = (snwd/1000.0),
+              verbose = FALSE )
+    remove(netcdf_snwd,
+           snwd)
+  }
+
+  if ("WESD" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_wesd,
+              vals    = wesd,
+              verbose = FALSE )
+    remove(netcdf_wesd,
+           wesd)
+  }
+
+  if ("WESF" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_wesf,
+              vals    = wesf,
+              verbose = FALSE )
+    remove(netcdf_wesf,
+           wesf)
+  }
+
+
+  if ("AWND" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_awnd,
+              vals    = awnd,
+              verbose = FALSE )
+    remove(netcdf_awnd,
+           awnd)
+  }
+
+
+  if ("AWDR" %in% available_datafields) {
+    ncvar_put(nc      = nc_ghcn,
+              varid   = netcdf_awdr,
+              vals    = awnd,
+              verbose = FALSE )
+    remove(netcdf_awdr,
+           awdr)
+  }
+
+  nc_close( nc_ghcn )
+
+  remove(nc_ghcn,
+         netcdf_time_dim)
+
+  print("--------------------------")
+  print(paste("Station # ",
+              ncdc_index,
+              " of ",
+              total_number_of_stations,
+              sep = ""))
+  print(filename_station_label)
+  print(available_datafields)
+
+
+
+
+  remove(Date,
+         Days_from_1970_01_01,
+         available_datafields,
+         file_title_string,
+         filename_ghcn_label,
+         filename_station_label,
+         fill_value,
+         ghcn_station_code,
+         ncdc_end_yymmdd,
+         ncdc_start_yymmdd,
+         netcdf_available_variables,
+         output_file_name,
+         ncdc_id_code,
+         netcdf_output_file_name,
+         station_name_label)
+
+
+
+```
