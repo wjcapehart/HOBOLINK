@@ -8,7 +8,6 @@
 library("lubridate")
 library("ncdf4")
 library("zoo")
-library("Rsenal")
 library("humidity")
 
 
@@ -66,7 +65,7 @@ end_window   = "2018-04-30_23:59:00"
 
 input_directory = "~/GitHub/HOBOLINK/"
 csv_file        = paste(input_directory,
-                        "Ojiwarango_ESE28km_2018-04-01_00:00:00_2018.csv",
+                        "April_2018_2018_05_10_19_29_55_UTC_1.csv",
                         sep="")
 
 ncdf_file    = paste(input_directory,
@@ -96,19 +95,23 @@ end_time   = as.POSIXct(x      = paste(gsub(pattern     = "_",
                         tz     = "UTC",
                         origin = "1970-01-01 00:00:00 UTC")
 
-time       = seq(from = start_time, 
+zoo.time   = seq(from = start_time, 
                  to   = end_time,
-                 by   = 60.0)
+                 by   = 60.0)+ 30.0
 
-data = read.csv(file = csv_file, 
-                header = TRUE, 
-                quote = "\"",
-                dec = ".", 
-                fill = TRUE,
-                comment.char = "")
+zoo.time_lower = zoo.time-30.0
+zoo.time_upper = zoo.time+30.0
+
+
+data = read.csv(file             = csv_file, 
+                header           = TRUE, 
+                quote            = "\"",
+                dec              = ".", 
+                stringsAsFactors = FALSE,
+                fill             = TRUE,
+                comment.char     = "")
 
 remove(csv_file)
-
 
 names(data)[ 1] = "Record"
 names(data)[ 2] = "time"
@@ -122,6 +125,22 @@ names(data)[ 9] = "wind_speed"
 names(data)[10] = "wind_speed_of_gust"
 names(data)[11] = "Battery_Voltage"
 
+
+
+csv.time = as.POSIXct(x      = strptime(data$time, "%y/%m/%d %H:%M:%S"), 
+                      format = "%Y-%m-%d %H:%M:%S",
+                      tz     = "UTC",
+                      origin = "1970-01-01 00:00:00 UTC")
+
+
+
+keeps = names(data)[ 3:11]
+data  = data[keeps]
+remove(keeps)
+
+
+
+
 data$wind_from_direction   = as.numeric(data$wind_from_direction)
 data$solar_irradiance      = as.numeric(data$solar_irradiance)
 data$relative_humidity     = as.numeric(data$relative_humidity)
@@ -132,39 +151,33 @@ data$wind_speed            = as.numeric(data$wind_speed)
 data$wind_speed_of_gust    = as.numeric(data$wind_speed_of_gust)
 data$Battery_Voltage       = as.numeric(data$Battery_Voltage)
 
-deleteme = wdws2uv(wd = data$wind_from_direction, 
-                   ws = data$wind_speed)
+data$eastward_wind         = - data$wind_speed * sin( pi * data$wind_from_direction / 180. )
+data$northward_wind        = - data$wind_speed * cos( pi * data$wind_from_direction / 180. )
 
-data$eastward_wind         = deleteme[,1]
-data$northward_wind        = deleteme[,2]
-
-
-data$specific_humidity = SH(e = SVP(t       = data$air_temperature,
-                                    isK     = FALSE,
+data$specific_humidity = SH(e = SVP(t       = (data$air_temperature+273.15),
+                                    isK     = TRUE,
                                     formula = "Clausius-Clapeyron"),
                             p = data$air_pressure * 100.0)
 
-remove(deleteme)
 
-zoo.time = as.POSIXct(x      = strptime(data$time, "%y/%m/%d %H:%M:%S"), 
-                      format = "%Y-%m-%d %H:%M:%S",
-                      tz     = "UTC",
-                      origin = "1970-01-01 00:00:00 UTC")
-
-keeps = names(data)[ 3:11]
-data  = data[keeps]
-remove(keeps)
 
 
 zoo.data = as.zoo(x        = data,
-                  order.by = zoo.time)
+                  order.by = csv.time )
 
 remove(data)
 
+battery_voltage = zoo.data$Battery_Voltage
+
+delete.me = na.approx(object = battery_voltage, 
+                      na.rm  = FALSE,
+                      maxgap = 5)
+
+zoo.data$Battery_Voltage = delete.me
 
 zoo.data =  merge.zoo(x = zoo.data, 
                       y = zoo(x        = ,
-                              order.by = time), 
+                              order.by = zoo.time), 
                       fill = NA)
 
 ```
@@ -176,7 +189,6 @@ zoo.data =  merge.zoo(x = zoo.data,
 
 
   netcdf_output_file_name = paste(file_title_string,
-                                  ".nc",
                                   sep="")
 
   netcdf_time_dim  = ncdim_def(name  = "time",
@@ -187,12 +199,24 @@ zoo.data =  merge.zoo(x = zoo.data,
 
   netcdf_name_dim  = ncdim_def(name  = "name_strlen",
                                units = "",
-                               val   = 1:nchar(file_title_string),
+                               val   = 1:nchar(site_label),
                                unlim = FALSE,
                                create_dimvar=FALSE)
 
-
-
+  netcdf_bounds_dim  = ncdim_def(name  = "bnds",
+                                 units = "",
+                                 val   = 1:2,
+                                 unlim = FALSE,
+                                 create_dimvar = FALSE)
+  
+  netcdf_time_bounds   = ncvar_def(nam      = "time_bnds",
+                                   units    = "days since 1970-01-01 00:00:00",
+                                   dim      = list(netcdf_bounds_dim,
+                                                   netcdf_time_dim),
+                                   missval  = fill_value,
+                                   longname = "Climate Year Bounds",
+                                   prec     = "single")
+  
 
   fill_value = 9.96921e+36
 
@@ -229,126 +253,112 @@ zoo.data =  merge.zoo(x = zoo.data,
                                     netcdf_stn)
 
 
-  if ("TMAX" %in% available_datafields) {
-    netcdf_tmax = ncvar_def(nam      = "maximum_air_temperature",
-                            units    = "degC",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "2-m Maximum Daily Air Temperature",
-                            prec     = "single")
+    netcdf_temperature = ncvar_def(nam      = "air_temperature",
+                                      units    = "degC",
+                                      dim      = netcdf_time_dim,
+                                      missval  = fill_value,
+                                      longname = "2-m Air Temperature",
+                                      prec     = "single")
     netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_tmax)
-  }
+                                             netcdf_temperature)
 
-  if ("TMIN" %in% available_datafields) {
-    netcdf_tmin = ncvar_def(nam      = "minimum_air_temperature",
-                            units    = "degC",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "2-m Minimium Daily Air Temperature",
-                            prec     = "single")
+        netcdf_dewpoint = ncvar_def(nam      = "dew_point_temperature",
+                                      units    = "degC",
+                                      dim      = netcdf_time_dim,
+                                      missval  = fill_value,
+                                      longname = "2-m Air Dew Point Temperature",
+                                      prec     = "single")
     netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_tmin)
-  }
-
-
-  if ("TAVG" %in% available_datafields) {
-    netcdf_tavg = ncvar_def(nam      = "mean_air_temperature",
-                            units    = "degC",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "2-m Mean Daily Air Temperature",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_tavg)
-  }
-
-  if ("PRCP" %in% available_datafields) {
-    netcdf_prcp = ncvar_def(nam      = "precipitation_amount",
-                            units    = "kg m-2",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "Daily Total Precipitation",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_prcp)
-  }
-
-  if ("SNOW" %in% available_datafields) {
-    netcdf_snow = ncvar_def(nam      = "thickness_of_snowfall_amount",
-                            units    = "m",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "Daily Total Snowfall",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_snow)
-  }
-
-  if ("SNWD" %in% available_datafields) {
-    netcdf_snwd = ncvar_def(nam      = "surface_snow_thickness",
-                            units    = "m",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "Snow Depth on Surface",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_snwd)
-  }
-
-
-  if ("WESD" %in% available_datafields) {
-    netcdf_wesd = ncvar_def(nam      = "liquid_water_content_of_surface_snow",
-                            units    = "kg m-2",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "Liquid Snow Water Equivalent Depth on Surface",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_wesd)
-  }
-
-  if ("WESF" %in% available_datafields) {
-    netcdf_wesf = ncvar_def(nam      = "liquid_water_equivalent_snowfall_amount",
-                            units    = "kg m-2",
-                            dim      = netcdf_time_dim,
-                            missval  = fill_value,
-                            longname = "Liquid Snow Water Equivalent Depth on Surface",
-                            prec     = "single")
-    netcdf_available_variables = list.append(netcdf_available_variables,
-                                             netcdf_wesf)
-  }
-
-
-  if ("AWND" %in% available_datafields) {
-    netcdf_awnd = ncvar_def(nam      = "mean_wind_speed",
+                                             netcdf_dewpoint)
+    
+    netcdf_awnd = ncvar_def(nam      = "wind_speed",
                             units    = "m s-1",
                             dim      = netcdf_time_dim,
                             missval  = fill_value,
-                            longname = "Mean Daily Wind Speed",
+                            longname = "Wind Speed",
                             prec     = "single")
     netcdf_available_variables = list.append(netcdf_available_variables,
                                              netcdf_awnd)
-  }
 
 
-  if ("AWNDR" %in% available_datafields) {
-    netcdf_awdr = ncvar_def(nam      = "mean_wind_from_direction",
+    
+    netcdf_awdr = ncvar_def(nam      = "wind_from_direction",
                             units    = "degrees_from",
                             dim      = netcdf_time_dim,
                             missval  = fill_value,
-                            longname = "Mean Daily Wind Origin Direction",
+                            longname = "Wind Origin Direction",
                             prec     = "single")
     netcdf_available_variables = list.append(netcdf_available_variables,
                                              netcdf_awdr)
-  }
+
+    netcdf_u = ncvar_def(nam      = "eastward_wind",
+                            units    = "m s-1",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "10-m Eastward Wind Speed",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_u)
+
+     netcdf_v = ncvar_def(nam      = "northward_wind",
+                            units    = "m s-1",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "10-m Westward Wind Speed",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_v)
+    
+    netcdf_gust = ncvar_def(nam      = "wind_speed_of_gust",
+                            units    = "m s-1",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Maximium Wind Gust",
+                            prec     = "single")
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_gust)
 
 
 
 
+    netcdf_solar = ncvar_def(nam      = "solar_irradiance",
+                            units    = "m s-1",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Solar Irradiance",
+                            prec     = "single")
+    
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_solar)
 
 
+    
 
+
+    netcdf_pressure = ncvar_def(nam      = "air_pressure",
+                            units    = "Pa",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "2-m Air Pressure",
+                            prec     = "single")
+    
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_pressure)
+
+    netcdf_battery = ncvar_def(nam      = "battery_voltage",
+                            units    = "V",
+                            dim      = netcdf_time_dim,
+                            missval  = fill_value,
+                            longname = "Battery Voltage",
+                            prec     = "single")
+    
+    netcdf_available_variables = list.append(netcdf_available_variables,
+                                             netcdf_battery)
+
+    
+        
+    
+    
 
   nc_ghcn = nc_create(filename = netcdf_output_file_name,
                         vars     = netcdf_available_variables,
